@@ -3,18 +3,13 @@ package applier
 import (
 	"context"
 	"fmt"
-	"math/rand"
-	"regexp"
-	"time"
 
-	"github.com/gitops-tools/image-updater/pkg/config"
-	"github.com/gitops-tools/image-updater/pkg/hooks"
-	"github.com/gitops-tools/pkg/client"
-	"github.com/gitops-tools/pkg/updater"
 	"github.com/go-logr/logr"
+	"github.com/ocraviotto/go-scm/scm"
+	"github.com/ocraviotto/pkg/client"
+	"github.com/ocraviotto/pkg/updater"
+	"github.com/ocraviotto/yaml-updater/pkg/config"
 )
-
-var timeSeed = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 // New creates and returns a new Applier.
 func New(l logr.Logger, c client.GitClient, cfgs *config.RepoConfiguration, opts ...updater.UpdaterFunc) *Applier {
@@ -29,45 +24,51 @@ type Applier struct {
 	updater *updater.Updater
 }
 
-// UpdateFromHook takes the incoming hook and triggers an update based on the
-// configuration for the repo in the hook (if one matches).
-func (u *Applier) UpdateFromHook(ctx context.Context, h hooks.PushEvent) error {
-	cfg := u.configs.Find(h.EventRepository())
-	if cfg == nil {
-		u.log.Info("failed to find repo", "name", h.EventRepository())
-		return nil
-	}
-	if cfg.TagMatch != "" {
-		re, err := regexp.Compile(cfg.TagMatch)
-		if err != nil {
-			return fmt.Errorf("failed to compile TagMatch regular expression: %s", err)
-		}
-		if !re.MatchString(h.EventTag()) {
-			u.log.Info("failed to match tag", "tag", h.EventTag(), "tagMatch", cfg.TagMatch)
-			return nil
+// UpdateRepositories takes a list of repositories (e.g. from config)
+// and for each it calls UpdateRepository, returning on any detected error.
+func (u *Applier) UpdateRepositories(ctx context.Context, newValue string) error {
+	var result error
+	for _, repo := range u.configs.Repositories {
+		if res := u.UpdateRepository(ctx, repo, newValue); res != nil {
+			u.log.Error(result, "Failed to update repository file", "repository", repo.SourceRepo, "file", repo.FilePath)
+			result = res
 		}
 	}
-	u.log.Info("found repo", "name", h.EventRepository(), "newURL", h.PushedImageURL())
-	return u.UpdateRepository(ctx, cfg, h.PushedImageURL())
+	return result
 }
 
-// UpdateRepository does the job of fetching the existing file, updating it, and
-// then optionally creating a PR.
-func (u *Applier) UpdateRepository(ctx context.Context, cfg *config.Repository, newURL string) error {
+// UpdateRepository does the job of fetching the existing file, optionally creating it if it does not exist,
+// updating it, and then optionally creating a PR. It also supports file removal.
+func (u *Applier) UpdateRepository(ctx context.Context, cfg *config.Repository, newValue string) error {
+	signature := scm.Signature{}
+	cuFunc := updater.UpdateYAML(cfg.UpdateKey, newValue)
+	if cfg.RemoveKey {
+		cuFunc = updater.RemoveYAMLKey(cfg.UpdateKey)
+	}
+	cs := cfg.Signature
+	if cs != nil && cs.Name != "" && cs.Email != "" {
+		signature.Name = cs.Name
+		signature.Email = cs.Email
+	}
+	commitMsg := cfg.CommitMsg
+	if commitMsg == "" {
+		commitMsg = "Automatic update because of GitOps yaml update/removal"
+	}
 	ci := updater.CommitInput{
 		Repo:               cfg.SourceRepo,
 		Filename:           cfg.FilePath,
 		Branch:             cfg.SourceBranch,
 		BranchGenerateName: cfg.BranchGenerateName,
-		CommitMessage:      "Automatic update because an image was updated",
+		CreateMissing:      cfg.CreateMissing,
+		CommitMessage:      commitMsg,
+		Signature:          signature,
 	}
-
-	newBranch, err := u.updater.ApplyUpdateToFile(ctx, ci, updater.UpdateYAML(cfg.UpdateKey, newURL))
+	newBranch, err := u.updater.ApplyUpdateToFile(ctx, ci, cuFunc)
 	if err != nil {
 		u.log.Error(err, "failed to get file from repo")
 		return err
 	}
-	u.log.Info("updated branch with image", "image", newURL, "branch", newBranch)
+	u.log.Info("updated branch with value", "value", newValue, "branch", newBranch)
 
 	// If we modified the original branch...
 	if newBranch == cfg.SourceBranch {

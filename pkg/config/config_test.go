@@ -46,7 +46,6 @@ func TestParse(t *testing.T) {
 						FilePath:           "test/file.yaml",
 						UpdateKey:          "person.name",
 						BranchGenerateName: "repo-imager-",
-						TagMatch:           ".*main",
 					},
 				},
 			},
@@ -68,6 +67,71 @@ func TestParse(t *testing.T) {
 			}
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				rt.Errorf("Parse(%s) failed diff\n%s", tt.filename, diff)
+			}
+		})
+	}
+}
+
+func TestConfigLoad(t *testing.T) {
+	s := &Signature{
+		Name:  "John Doe",
+		Email: "john.doe@example.com",
+	}
+	parseTests := []struct {
+		filename string
+		want     *RepoConfiguration
+	}{
+		{
+			"testdata/.yaml-updater.yaml", &RepoConfiguration{
+				Repositories: []*Repository{
+					{
+						Name:               "testing/repo-image",
+						SourceRepo:         "my-org/my-project",
+						SourceBranch:       "main",
+						FilePath:           "service-a/deployment.yaml",
+						UpdateKey:          "spec.template.spec.containers.0.image",
+						BranchGenerateName: "repo-imager-",
+						CreateMissing:      true,
+						Signature:          s,
+					},
+					{
+						Name:               "testing/repo-image",
+						SourceRepo:         "my-org/my-other-project",
+						SourceBranch:       "master",
+						FilePath:           "service-a/deployment.yaml",
+						UpdateKey:          "spec.template.spec.containers.0.image",
+						BranchGenerateName: "repo-imager-",
+						CreateMissing:      true,
+						Signature:          s,
+					},
+				},
+			},
+		},
+		{
+			"testdata/config.yaml", &RepoConfiguration{
+				Repositories: []*Repository{
+					{
+						Name:               "testing/repo-image",
+						SourceRepo:         "example/example-source",
+						SourceBranch:       "main",
+						FilePath:           "test/file.yaml",
+						UpdateKey:          "person.name",
+						BranchGenerateName: "repo-imager-",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range parseTests {
+		t.Run(fmt.Sprintf("parsing %s", tt.filename), func(rt *testing.T) {
+			got, err := Load(tt.filename)
+			if err != nil {
+				rt.Errorf("failed to load %v: %s", tt.filename, err)
+				return
+			}
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				rt.Errorf("Loading(%s) failed diff\n%s", tt.filename, diff)
 			}
 		})
 	}

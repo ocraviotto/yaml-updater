@@ -4,8 +4,8 @@ import (
 	"crypto/tls"
 	"net/http"
 
-	"github.com/jenkins-x/go-scm/scm"
-	"github.com/jenkins-x/go-scm/scm/factory"
+	"github.com/ocraviotto/go-scm/scm"
+	"github.com/ocraviotto/go-scm/scm/factory"
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
 )
@@ -14,6 +14,7 @@ func createClientFromViper() (*scm.Client, error) {
 	authToken := viper.GetString(authTokenFlag)
 	driver := viper.GetString(driverFlag)
 	apiEndpoint := viper.GetString(apiEndpointFlag)
+	username := viper.GetString(usernameFlag)
 	if viper.GetBool(insecureFlag) {
 		return factory.NewClient(
 			driver,
@@ -25,7 +26,8 @@ func createClientFromViper() (*scm.Client, error) {
 	return factory.NewClient(
 		driver,
 		apiEndpoint,
-		authToken)
+		authToken,
+		factory.SetUsername(username))
 }
 
 func makeInsecureClient(token string) *http.Client {
