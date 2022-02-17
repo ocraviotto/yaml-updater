@@ -1,184 +1,79 @@
-# image-updater ![Go](https://github.com/gitops-tools/image-updater/workflows/Go/badge.svg) [![Go Report Card](https://goreportcard.com/badge/github.com/gitops-tools/image-updater)](https://goreportcard.com/report/github.com/gitops-tools/image-updater)
+# yaml-updater
 
-This is a small tool and service for updating YAML files with image references,
-to simplify continuous deployment pipelines.
+This is a small tool for updating YAML files, either by updating a key value (with the option to create the yaml file if it does not exist), or removing a key (or a whole file).
+The goal is to enable automating commits (and optionally PR creation) in a GitOps flow.
 
-It updates a YAML file in a Git repository, and optionally opens a Pull Request.
+The difference between this and the forked [image-update](https://github.com/gitops-tools/image-updater) repository can be summed up as:
+
+1. Augmenting the scope of actions to be a yaml key/file updater, rather than simply limiting the tool to updating an image only (hence the name change)
+2. Modified libraries to allow for the above changes, and to fully support BitBucket
+3. Removal of the http and pubsub commands (limited cloud support for the pubsub, security concerns with the webhook). If you need/want that, make sure to check upstream
 
 ## Command-line tool
 
-```shell
-$ ./image-updater --help
-Update YAML files in a Git service, with optional automated Pull Requests
+The original code used to support additional commands, but as mentioned above, they were removed. However, the update functionality is still located under the update command and additional commands may be added in the future.
 
-Usage:
-  image-updater [command]
-
-Available Commands:
-  help        Help about any command
-  http        update repositories in response to image hooks
-  pubsub      update repositories in response to gcr pubsub events
-  update      update a repository configuration
-
-Flags:
-  -h, --help   help for image-updater
-
-Use "image-updater [command] --help" for more information about a command.
-```
-
-There are three sub-commands, `http`, `pubsub` and `update`.
-
-`http` provides a Webhook service, `pubsub` subscribes to pubsub events and `update` will perform the same
-functionality from the command-line.
-
-## Update tool
-
-This requires a `AUTH_TOKEN` environment variable with a token.
+To see all existing options:
 
 ```shell
-$ ./image-updater update --file-path service-a/deployment.yaml --image-repo quay.io/myorg/my-image --source-repo mysource/my-repo --new-image-url quay.io/myorg/my-image:v1.1.0 --update-key spec.template.spec.containers.0.image
+$ ./yaml-updater update --help
 ```
 
-This would update a file `service-a/deployment.yaml` in a GitHub repo at `mysource/my-repo`, changing the `spec.template.spec.containers.0.image` key in the file to `quay.io/myorg/my-image:v1.1.0`, the PR will indicate that this is an update from `quay.io/myorg/my-image`.
-
-If you need to access a private GitLab or GitHub installation, you can provide
-the `--api-endpoint` e.g.
+### Update a yaml via flags only
 
 ```shell
-$ ./image-updater update --file-path service-a/deployment.yaml --image-repo quay.io/myorg/my-image --source-repo mysource/my-repo --new-image-url quay.io/myorg/my-image:v1.1.0 --update-key spec.template.spec.containers.0.image
+$ export GIT_USERNAME=my-user GIT_AUTH_TOKEN=my_token
+$ ./yaml-updater update --file-path service-a/deployment.yaml --change-source-name my-docker-code-repo --source-repo my-org/my-change-target-repo --source-branch master --new-value quay.io/myorg/my-image:v1.1.0 --update-key spec.template.spec.containers.0.image --branch-generate-name gitops- 
 ```
 
-For the HTTP service, you will likely need to adapt the deployment.
+This would update a file `service-a/deployment.yaml` in a GitHub repository at `my-org/my-change-target-repo`, changing the `spec.template.spec.containers.0.image` key in the file to `quay.io/myorg/my-image:v1.1.0`, the PR will indicate that this is an update from `my-docker-code-repo`.
+If you want to do the same for some of the other supported git services, set GIT_DRIVER: `GIT_DRIVER=bitbucketcloud` or `GIT_DRIVER=gitlab`
 
-You can also opt to allow for insecure TLS access with `--insecure`.
+If you need to access to private GitLab or GitHub installation, you can provide the `--api-endpoint` flag (or use the corresponding `GIT_API_ENDPOINT` env variable)
 
-## Webhook Service
+### Use yaml configuration
 
-This is a micro-service for updating Git Repos when a hook is received indicating that a new image has been pushed from an image repository.
-
-This currently supports receiving hooks from Docker and Quay.io.
-
-### WARNING
-
-Neither Docker Hub nor Quay.io provide a way for receivers to authenticate Webhooks, which makes this insecure, a malicious user could trigger the creation of pull requests in your git hosting service.
-
-Please understand the risks of using this component.
-
-## Pubsub Service
-Similarly to the Webhook service, the pubsub services allows to update Git Repos when a pubsub Event is received. 
-
-This currently supports Events from [Google Cloud Registry](https://cloud.google.com/container-registry/docs/configuring-notifications).
-
-It requires two arguments `--project-id` and `--subscription-name`. See [below](#google-container-registry-setup) for more details on how to setup the subscription.
-
-## Configuration
-
-Both the Webhook and Pubsub service uses a really simple configuration:
+This allows one to simplify calling the cli or to apply the same value change to multiple files or repositories. For example, for CI/CD pipelines it's simpler to write most of the update command flags as configuration, and provide it as a list of repository details to target changes, which as mentioned also supports targeting multiple repositories or files (if the repository details are the same).
+For example, the above section cli command could be simplified, so that the configuration would look like
 
 ```yaml
 repositories:
-  - name: testing/repo-image
-    sourceRepo: my-org/my-project
-    sourceBranch: main
+  - name: my-docker-code-repo
+    sourceRepo: my-org/my-change-target-repo
+    sourceBranch: master
     filePath: service-a/deployment.yaml
     updateKey: spec.template.spec.containers.0.image
-    branchGenerateName: repo-imager-
-    tagMatch: "^main-.*"
+    branchGenerateName: gitops-
 ```
-
-This is a single repository configuration, Repo Push notifications from the
-image `testing/repo-image`, will trigger an update in the repo
-`my-org/my-project`.
-
-The change will be based off the `main` branch, and updating the file
-`service-a/deployment.yaml`.
-
-Within that file, the `spec.template.spec.containers.0.image` field will be replaced
-with the incoming image.
-
-A new branch will be created based on the `branchGenerateName` field, which
-would look something like `repo-imager-kXzdf`.
-
-The presence of the `tagMatch` field means that it should only apply the update,
-if the tag being changed matches this regular expression, in this case, tags
-like "main-c1f79ab" would match, but "test-pr-branch-c1f79ab" would not.
-
-### Updating the sourceBranch directly
-
-If no value is provided for `branchGenerateName`, then the `sourceBranch` will
-be updated directly, this means that if you use `main`, then the token must
-have access to push a change directly to `main`.
-
-### Creating the configuration
-
-The tool reads a YAML definition, which in the provided `Deployment` is mounted
-in from a `ConfigMap`.
+and the command could be as simple as
 
 ```shell
-$ kubectl create configmap image-updater-config --from-file=config.yaml
+$ export GIT_USERNAME=my-user GIT_AUTH_TOKEN=my_token
+$ ./yaml-updater update --new-value quay.io/myorg/my-image:v1.1.0
 ```
 
-The default deployment requires a secret to expose the `GITHUB_TOKEN` to the
-service.
+The yaml configuration can be a relative or absolute path and be set with the `--config-path` flag or the `GIT_CONFIG_PATH` env var, and defaults to '.yaml-updater.yaml' when not set.
+
+Do note that, when using the configuration yaml, neither `--username`, `--driver` or `--auth-token` have a corresponding configuration field, as these are globally set and not particular to any repository.
+Likewise, every root or update command flag can be set as an env var of the form `GIT_` + the flag name with the dash replaced by an underscore and in uppercase. In the case of these flags, they were passed as env vars as they'll most likely be reused, but if not, call the updater and set them as flags instead.
+No need to set the driver if using `github`, which is the default.
 
 
-```shell
-$ export GITHUB_TOKEN=<insert github token>
-$ kubectl create secret generic image-updater-secret --from-literal=token=$GITHUB_TOKEN
-```
+### Important: Updating the sourceBranch directly
 
-## Deployment
-
-A Kubernetes `Deployment` is provided in [./deploy/deployment.yaml](./deploy/deployment.yaml).
-
-The service is **not** dependent on being executed within a Kubernetes cluster.
-
-## Choosing a hook parser
-
-By default, this accepts hooks from Docker hub but the deployment can easily be
-changed to support Quay.io.
-
-The `--parser` command-line option chooses which of the supported (Quay, Docker)
-hook formats to parse.
-
-
-## Exposing the Handler
-
-The Service exposes a Hook handler at `/` on port 8080 that handles the
-configured hook type.
-
-## Tekton
-
-A Tekton task is provided in [./tekton](./tekton) which allows you to apply
-updates to repos from a Tekton pipeline run.
-
-
-## Google Container registry setup
-```bash
-gcloud pubsub topics create gcr
-gcloud pubsub subscriptions create gcr-image-updater --topic projects/$GOOGLE_PROJECT/topics/gcr
-
-gcloud iam service-accounts create 
-gcloud iam service-accounts keys create credentials.json \
-  --iam-account $SA_NAME@$GOOGLE_PROJECT.iam.gserviceaccount.com
-
-gcloud pubsub subscriptions add-iam-policy-binding gcr-image-updater \
---member=serviceAccount:$SA_NAME@$GOOGLE_PROJECT.iam.gserviceaccount.com --role=roles/pubsub.subscriber
-```
-
-You then need to set the `GOOGLE_APPLICATION_CREDENTIALS` environment variable to the path the generated  `credentials.json` file.
+If no value is provided for `branchGenerateName`, then the `sourceBranch` will be updated directly, this means that if you use `master`, there will not be a PR created, the commit will be applied directly, and the token needs to authorize access to push a change directly to `master`.
 
 ## Building
 
 A `Dockerfile` is provided for building a container, but otherwise:
 
 ```shell
-$ go build ./cmd/image-updater
+$ go build ./cmd/yaml-updater
 ```
 
 ## Docker images
 
-Images are available at `bigkevmcd/image-updater:latest` or based on the tag e.g `bigkevmcd/image-updater:v0.0.2`
+Images are available at `oscarc/yaml-updater` and there should soon be additional tags matching this repository tags.
 
 ## Testing
 

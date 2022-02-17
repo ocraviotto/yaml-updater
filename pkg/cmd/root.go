@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"log"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -10,7 +11,8 @@ import (
 const (
 	driverFlag      = "driver"
 	apiEndpointFlag = "api-endpoint"
-	authTokenFlag   = "auth_token"
+	authTokenFlag   = "auth-token"
+	usernameFlag    = "username"
 	insecureFlag    = "insecure"
 )
 
@@ -26,28 +28,35 @@ func logIfError(e error) {
 
 func makeRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:              "image-updater",
+		Use:              "yaml-updater",
 		TraverseChildren: true,
 		Short:            "Update YAML files in a Git service, with optional automated Pull Requests",
 	}
 
 	cmd.PersistentFlags().String(
 		driverFlag,
-		"github",
-		"go-scm driver name to use e.g. github, gitlab",
+		"bitbucketcloud",
+		"go-scm driver name to use e.g. github, gitlab, bitbucket, bitbucketcloud",
 	)
 	logIfError(viper.BindPFlag(driverFlag, cmd.PersistentFlags().Lookup(driverFlag)))
+
 	cmd.PersistentFlags().String(
 		authTokenFlag,
 		"",
-		"The token to authenticate requests to your Git service",
+		"The token or password to authenticate requests to your Git service",
 	)
 	logIfError(viper.BindPFlag(authTokenFlag, cmd.PersistentFlags().Lookup(authTokenFlag)))
+	cmd.PersistentFlags().String(
+		usernameFlag,
+		"",
+		"The username to authenticate requests to your Git service. Must be given for bitbucketcloud and if using pass. This has nothing to do with the committer name",
+	)
+	logIfError(viper.BindPFlag(usernameFlag, cmd.PersistentFlags().Lookup(usernameFlag)))
 
 	cmd.PersistentFlags().String(
 		apiEndpointFlag,
 		"",
-		"The API endpoint to communicate with private GitLab/GitHub installations",
+		"The API endpoint to communicate with private GitLab/GitHub/BitBucket installations",
 	)
 	logIfError(viper.BindPFlag(apiEndpointFlag, cmd.PersistentFlags().Lookup(apiEndpointFlag)))
 
@@ -58,14 +67,15 @@ func makeRootCmd() *cobra.Command {
 	)
 	logIfError(viper.BindPFlag(insecureFlag, cmd.PersistentFlags().Lookup(insecureFlag)))
 
-	cmd.AddCommand(makeHTTPCmd())
 	cmd.AddCommand(makeUpdateCmd())
-	cmd.AddCommand(makePubsubCmd())
+
 	return cmd
 }
 
 func initConfig() {
+	viper.SetEnvPrefix("git")
 	viper.AutomaticEnv()
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 }
 
 // Execute is the main entry point into this component.
