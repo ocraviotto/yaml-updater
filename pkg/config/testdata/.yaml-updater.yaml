@@ -1,0 +1,21 @@
+repositories:
+  - name: testing/repo-image
+    sourceRepo: my-org/my-project
+    sourceBranch: main
+    filePath: service-a/deployment.yaml
+    updateKey: spec.template.spec.containers.0.image
+    branchGenerateName: repo-imager-
+    createMissing: true
+    signature:
+      name: "John Doe"
+      email: "john.doe@example.com"
+  - name: testing/repo-image
+    sourceRepo: my-org/my-other-project
+    sourceBranch: master
+    filePath: service-a/deployment.yaml
+    updateKey: spec.template.spec.containers.0.image
+    branchGenerateName: repo-imager-
+    createMissing: true
+    signature:
+      name: "John Doe"
+      email: "john.doe@example.com"
