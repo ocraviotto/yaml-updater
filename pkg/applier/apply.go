@@ -60,6 +60,7 @@ func (u *Applier) UpdateRepository(ctx context.Context, cfg *config.Repository, 
 		Branch:             cfg.SourceBranch,
 		BranchGenerateName: cfg.BranchGenerateName,
 		CreateMissing:      cfg.CreateMissing,
+		RemoveFile:         cfg.RemoveFile,
 		CommitMessage:      commitMsg,
 		Signature:          signature,
 	}
