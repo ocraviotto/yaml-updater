@@ -130,7 +130,7 @@ func addConfigFlags(cmd *cobra.Command) {
 		false,
 		"If set, instead of an update or add operation, this will execute a removal of target of file-path if it exists. When set, either via flag or env, it overrides config from yaml",
 	)
-	logIfError(viper.BindPFlag("remove-key", cmd.Flags().Lookup("remove-key")))
+	logIfError(viper.BindPFlag("remove-file", cmd.Flags().Lookup("remove-file")))
 
 	cmd.Flags().String(
 		"committer-name",

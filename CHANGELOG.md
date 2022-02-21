@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.1.1](https://github.com/ocraviotto/yaml-updater/tree/v0.1.1) (2022-02-21)
+
+[Full Changelog](https://github.com/ocraviotto/yaml-updater/compare/v0.1.0...v0.1.1)
+
+**Fixed bugs:**
+
+- fix: added missing remove-file flag in setting CommitInput struct [\#2](https://github.com/ocraviotto/yaml-updater/pull/2) ([ocraviotto](https://github.com/ocraviotto))
+
 ## [v0.1.0](https://github.com/ocraviotto/yaml-updater/tree/v0.1.0) (2022-02-17)
 
 [Full Changelog](https://github.com/ocraviotto/yaml-updater/compare/v0.0.2...v0.1.0)

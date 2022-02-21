@@ -17,4 +17,4 @@ go.work
 # Other
 .vscode
 /.yaml-updater.yaml
-yaml-updater
+/yaml-updater
