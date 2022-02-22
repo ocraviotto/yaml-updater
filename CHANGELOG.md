@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.1.2](https://github.com/ocraviotto/yaml-updater/tree/v0.1.2) (2022-02-22)
+
+[Full Changelog](https://github.com/ocraviotto/yaml-updater/compare/v0.1.1...v0.1.2)
+
+**Implemented enhancements:**
+
+- Better global overrides [\#3](https://github.com/ocraviotto/yaml-updater/pull/3) ([ocraviotto](https://github.com/ocraviotto))
+
 ## [v0.1.1](https://github.com/ocraviotto/yaml-updater/tree/v0.1.1) (2022-02-21)
 
 [Full Changelog](https://github.com/ocraviotto/yaml-updater/compare/v0.1.0...v0.1.1)
