@@ -160,9 +160,10 @@ func addConfigFlags(cmd *cobra.Command) {
 
 	cmd.Flags().String(
 		"commit-msg",
-		"Automatic update because of GitOps yaml update/removal",
+		"",
 		"The message to use when creating the commit to change/create the source branch file. "+
-			"When set, either via flag or env, it overrides all repository configs from yaml",
+			"When set, either via flag or env, it overrides all repository configs from yaml. "+
+			"Defaults to \"Automatic update from [change-source-name]\"",
 	)
 	logIfError(viper.BindPFlag("commit-msg", cmd.Flags().Lookup("commit-msg")))
 }
