@@ -77,7 +77,7 @@ func (u *Applier) UpdateRepository(ctx context.Context, cfg *config.Repository, 
 	}
 
 	pullRequestInput := updater.PullRequestInput{
-		Title:        "Automated yaml update",
+		Title:        fmt.Sprintf("Automated PR for yaml update from %q", cfg.Name),
 		Body:         fmt.Sprintf("Automated update from %q", cfg.Name),
 		Repo:         cfg.SourceRepo,
 		NewBranch:    newBranch,
