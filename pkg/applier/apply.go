@@ -52,7 +52,7 @@ func (u *Applier) UpdateRepository(ctx context.Context, cfg *config.Repository, 
 	}
 	commitMsg := cfg.CommitMsg
 	if commitMsg == "" {
-		commitMsg = "Automatic update because of GitOps yaml update/removal"
+		commitMsg = fmt.Sprintf("Automatic update from %s", cfg.Name)
 	}
 	ci := updater.CommitInput{
 		Repo:               cfg.SourceRepo,
@@ -77,7 +77,7 @@ func (u *Applier) UpdateRepository(ctx context.Context, cfg *config.Repository, 
 	}
 
 	pullRequestInput := updater.PullRequestInput{
-		Title:        "Automated image update",
+		Title:        "Automated yaml update",
 		Body:         fmt.Sprintf("Automated update from %q", cfg.Name),
 		Repo:         cfg.SourceRepo,
 		NewBranch:    newBranch,
