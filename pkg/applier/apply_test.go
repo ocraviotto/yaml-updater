@@ -42,7 +42,7 @@ func TestUpdaterWithSingleRepo(t *testing.T) {
 	}
 	m.AssertBranchCreated(testGitHubRepo, "test-branch-a", testSHA)
 	m.AssertPullRequestCreated(testGitHubRepo, &scm.PullRequestInput{
-		Title:  "Automated image update",
+		Title:  fmt.Sprintf("Automated PR for yaml update from %q", testQuayRepo),
 		Body:   fmt.Sprintf("Automated update from %q", testQuayRepo),
 		Source: "test-branch-a",
 		Target: "master",
@@ -70,7 +70,7 @@ func TestUpdaterWithSingleRepositoryMethod(t *testing.T) {
 	}
 	m.AssertBranchCreated(testGitHubRepo, "test-branch-a", testSHA)
 	m.AssertPullRequestCreated(testGitHubRepo, &scm.PullRequestInput{
-		Title:  "Automated image update",
+		Title:  fmt.Sprintf("Automated PR for yaml update from %q", testQuayRepo),
 		Body:   fmt.Sprintf("Automated update from %q", testQuayRepo),
 		Source: "test-branch-a",
 		Target: "master",
@@ -112,13 +112,13 @@ func TestUpdaterWithMultiRepo(t *testing.T) {
 	m.AssertBranchCreated(testGitHubRepo, "test-branch-a", testSHA)
 	m.AssertBranchCreated(secondRepo, "test-branch-a", anotherTestSHA)
 	m.AssertPullRequestCreated(testGitHubRepo, &scm.PullRequestInput{
-		Title:  "Automated image update",
+		Title:  fmt.Sprintf("Automated PR for yaml update from %q", testQuayRepo),
 		Body:   fmt.Sprintf("Automated update from %q", testQuayRepo),
 		Source: "test-branch-a",
 		Target: "master",
 	})
 	m.AssertPullRequestCreated(secondRepo, &scm.PullRequestInput{
-		Title:  "Automated image update",
+		Title:  fmt.Sprintf("Automated PR for yaml update from %q", testQuayRepo),
 		Body:   fmt.Sprintf("Automated update from %q", testQuayRepo),
 		Source: "test-branch-a",
 		Target: secondRepoBranch,

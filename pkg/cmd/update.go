@@ -30,12 +30,19 @@ func makeUpdateCmd() *cobra.Command {
 				return fmt.Errorf("failed to create a git driver: %s", err)
 			}
 			c := viper.GetString("config-path")
+			if c != "" {
+				repositories, err = config.Load(c)
+				if err != nil {
+					l.Info("Error trying to read repositories yaml config from file", "content", repositories, "error", err)
+				}
+			}
 
-			if repositories, err = config.Load(c); err != nil {
-				l.Info("No repositories from config", "content", repositories, "error", err)
+			if repositories == nil {
+				l.Info("No repositories from config. Using flags or env")
 				applier := applier.New(l, client.New(scmClient), nil)
 				return applier.UpdateRepository(context.Background(), configFromFlags(), viper.GetString("new-value"))
 			}
+
 			repositories = globalConfigsOverrides(repositories)
 			applier := applier.New(l, client.New(scmClient), repositories)
 			return applier.UpdateRepositories(context.Background(), viper.GetString("new-value"))
@@ -72,7 +79,8 @@ func addConfigFlags(cmd *cobra.Command) {
 	cmd.Flags().String(
 		"change-source-name",
 		"",
-		"The value to set for the yaml key, e.g. org/repo that is being updated for a docker image. Required either via flag, env or yaml",
+		"The value to set for the yaml key, e.g. org/repo that is being updated for a docker image. Required either via flag, env or yaml. "+
+			"When set, either via flag or env, it overrides all repository configs from yaml",
 	)
 	logIfError(viper.BindPFlag("change-source-name", cmd.Flags().Lookup("change-source-name")))
 
@@ -86,49 +94,53 @@ func addConfigFlags(cmd *cobra.Command) {
 	cmd.Flags().String(
 		"source-branch",
 		"master",
-		"Branch to fetch for updating. When set, either via flag or env, it overrides config from yaml",
+		"Branch to fetch for updating",
 	)
 	logIfError(viper.BindPFlag("source-branch", cmd.Flags().Lookup("source-branch")))
 
 	cmd.Flags().String(
 		"file-path",
 		"",
-		"Path within the source-repo to update. Required either via flag, env or yaml. When set, either via flag or env, it overrides config from yaml",
+		"Path within the source-repo to update. Required either via flag, env or yaml. "+
+			"When set, either via flag or env, it overrides all repository configs from yaml",
 	)
 	logIfError(viper.BindPFlag("file-path", cmd.Flags().Lookup("file-path")))
 
 	cmd.Flags().String(
 		"update-key",
 		"",
-		"JSON path within the file-path to update e.g. spec.template.spec.containers.0.image. Required either via flag, env or yaml. When set, either via flag or env, it overrides config from yaml",
+		"JSON path within the file-path to update e.g. spec.template.spec.containers.0.image. Required either via flag, env or yaml",
 	)
 	logIfError(viper.BindPFlag("update-key", cmd.Flags().Lookup("update-key")))
 
 	cmd.Flags().String(
 		"branch-generate-name",
 		"gitops-",
-		"Prefix for naming automatically generated branches. If empty, the source-branch will be directly committed changes to",
+		"Prefix for naming automatically generated branches. If empty, the source-branch will be directly committed changes to without a PR",
 	)
 	logIfError(viper.BindPFlag("branch-generate-name", cmd.Flags().Lookup("branch-generate-name")))
 
 	cmd.Flags().Bool(
 		"create-missing",
 		true,
-		"If source file does not exist, create it. The yaml key (and the full objects/arrays if nested) will be always created if missing. When set, either via flag or env, it overrides config from yaml",
+		"If source file does not exist, create it. The yaml key (and the full objects/arrays if nested) will be always created if missing. "+
+			"When set, either via flag or env, it overrides all repository configs from yaml",
 	)
 	logIfError(viper.BindPFlag("create-missing", cmd.Flags().Lookup("create-missing")))
 
 	cmd.Flags().Bool(
 		"remove-key",
 		false,
-		"If set, the update-key needs to be removed instead of updated. Note, this only affects the final key or item key that would otherwise be updated. When set, either via flag or env, it overrides config from yaml",
+		"If set, the update-key needs to be removed instead of updated. Note, this only affects the final key or item key that would otherwise be updated. "+
+			"When set, either via flag or env, it overrides all repository configs from yaml",
 	)
 	logIfError(viper.BindPFlag("remove-key", cmd.Flags().Lookup("remove-key")))
 
 	cmd.Flags().Bool(
 		"remove-file",
 		false,
-		"If set, instead of an update or add operation, this will execute a removal of target of file-path if it exists. When set, either via flag or env, it overrides config from yaml",
+		"If set, instead of an update or add operation, this will execute a removal of target of file-path if it exists. "+
+			"When set, either via flag or env, it overrides all repository configs from yaml",
 	)
 	logIfError(viper.BindPFlag("remove-file", cmd.Flags().Lookup("remove-file")))
 
@@ -149,7 +161,8 @@ func addConfigFlags(cmd *cobra.Command) {
 	cmd.Flags().String(
 		"commit-msg",
 		"Automatic update because of GitOps yaml update/removal",
-		"The message to use when creating the commit to change/create the source branch file",
+		"The message to use when creating the commit to change/create the source branch file. "+
+			"When set, either via flag or env, it overrides all repository configs from yaml",
 	)
 	logIfError(viper.BindPFlag("commit-msg", cmd.Flags().Lookup("commit-msg")))
 }
@@ -198,11 +211,11 @@ func globalConfigsOverrides(configs *config.RepoConfiguration) *config.RepoConfi
 		if viper.IsSet("file-path") {
 			repo.FilePath = viper.GetString("file-path")
 		}
-		if viper.IsSet("update-key") {
-			repo.FilePath = viper.GetString("update-key")
+		if viper.IsSet("commit-msg") {
+			repo.CommitMsg = viper.GetString("commit-msg")
 		}
-		if viper.IsSet("source-branch") {
-			repo.FilePath = viper.GetString("source-branch")
+		if viper.IsSet("change-source-name") || viper.IsSet("image-repo") {
+			repo.Name = setUpdateName()
 		}
 	}
 	return configs
