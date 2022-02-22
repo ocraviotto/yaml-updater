@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.1.2](https://github.com/ocraviotto/yaml-updater/tree/v0.1.3) (2022-02-22)
+
+[Full Changelog](https://github.com/ocraviotto/yaml-updater/compare/v0.1.2...v0.1.3)
+
 ## [v0.1.2](https://github.com/ocraviotto/yaml-updater/tree/v0.1.2) (2022-02-22)
 
 [Full Changelog](https://github.com/ocraviotto/yaml-updater/compare/v0.1.1...v0.1.2)
