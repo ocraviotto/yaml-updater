@@ -10,23 +10,23 @@ import (
 
 func TestRepoConfigurationFind(t *testing.T) {
 	findTests := []struct {
-		name string
-		want *Repository
+		repoKey string
+		want    *Repository
 	}{
-		{"testing", &Repository{Name: "testing"}},
+		{"testRepo1", &Repository{Name: "testing"}},
 		{"unknown", nil},
 	}
 
 	cfgs := RepoConfiguration{
-		Repositories: []*Repository{
-			{Name: "testing"},
-			{Name: "another"},
+		Repositories: map[string]*Repository{
+			"testRepo1": {Name: "testing"},
+			"testRepo2": {Name: "another"},
 		},
 	}
 
 	for _, tt := range findTests {
-		if diff := cmp.Diff(tt.want, cfgs.Find(tt.name)); diff != "" {
-			t.Errorf("Find(%s) failed:\n %s", tt.name, diff)
+		if diff := cmp.Diff(tt.want, cfgs.Find(tt.repoKey)); diff != "" {
+			t.Errorf("Find(%s) failed:\n %s", tt.repoKey, diff)
 		}
 	}
 }
@@ -38,8 +38,8 @@ func TestParse(t *testing.T) {
 	}{
 		{
 			"testdata/config.yaml", &RepoConfiguration{
-				Repositories: []*Repository{
-					{
+				Repositories: map[string]*Repository{
+					"testRepo": {
 						Name:               "testing/repo-image",
 						SourceRepo:         "example/example-source",
 						SourceBranch:       "main",
@@ -83,8 +83,8 @@ func TestConfigLoad(t *testing.T) {
 	}{
 		{
 			"testdata/.yaml-updater.yaml", &RepoConfiguration{
-				Repositories: []*Repository{
-					{
+				Repositories: map[string]*Repository{
+					"testRepo1": {
 						Name:               "testing/repo-image",
 						SourceRepo:         "my-org/my-project",
 						SourceBranch:       "main",
@@ -94,7 +94,7 @@ func TestConfigLoad(t *testing.T) {
 						CreateMissing:      true,
 						Signature:          s,
 					},
-					{
+					"testRepo2": {
 						Name:               "testing/repo-image",
 						SourceRepo:         "my-org/my-other-project",
 						SourceBranch:       "master",
@@ -109,8 +109,8 @@ func TestConfigLoad(t *testing.T) {
 		},
 		{
 			"testdata/config.yaml", &RepoConfiguration{
-				Repositories: []*Repository{
-					{
+				Repositories: map[string]*Repository{
+					"testRepo": {
 						Name:               "testing/repo-image",
 						SourceRepo:         "example/example-source",
 						SourceBranch:       "main",

@@ -58,7 +58,7 @@ func TestUpdaterWithSingleRepositoryMethod(t *testing.T) {
 	applier := makeApplier(t, m, configs)
 	newValue := "repo:production"
 
-	err := applier.UpdateRepository(context.Background(), configs.Repositories[0], newValue)
+	err := applier.UpdateRepository(context.Background(), configs.Repositories["testRepo"], newValue)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,10 +88,10 @@ func TestUpdaterWithMultiRepo(t *testing.T) {
 	m.AddBranchHead(testGitHubRepo, "master", testSHA)
 	m.AddBranchHead(secondRepo, secondRepoBranch, anotherTestSHA)
 	configs := createConfigs()
-	secondConfig := createConfigs().Repositories[0]
+	secondConfig := createConfigs().Repositories["testRepo"]
 	secondConfig.SourceRepo = secondRepo
 	secondConfig.SourceBranch = secondRepoBranch
-	configs.Repositories = append(configs.Repositories, secondConfig)
+	configs.Repositories["testRepo2"] = secondConfig
 	applier := makeApplier(t, m, configs)
 	newValue := "repo:production"
 
@@ -125,8 +125,10 @@ func TestUpdaterWithMultiRepo(t *testing.T) {
 	})
 }
 
-// With no name-generator, the change should be made to master directly, rather
-// than going through a PullRequest.
+// With no name-generator, we used to signal we did not want a PR created
+// This is now changed and an empty BranchGenerateName will only remove the
+// PR branch prefix. We disable PR cretion with DisablePRCreation. See below
+// for that test with the only change being the new value
 func TestUpdaterWithNoNameGenerator(t *testing.T) {
 	sourceBranch := "production"
 	testSHA := "980a0d5f19a64b4b30a87d4206aade58726b60e3"
@@ -134,8 +136,39 @@ func TestUpdaterWithNoNameGenerator(t *testing.T) {
 	m.AddFileContents(testGitHubRepo, testFilePath, sourceBranch, []byte("test:\n  image: old-image\n"))
 	m.AddBranchHead(testGitHubRepo, sourceBranch, testSHA)
 	configs := createConfigs()
-	configs.Repositories[0].BranchGenerateName = ""
-	configs.Repositories[0].SourceBranch = sourceBranch
+	configs.Repositories["testRepo"].BranchGenerateName = ""
+	configs.Repositories["testRepo"].SourceBranch = sourceBranch
+	applier := makeApplier(t, m, configs)
+	newValue := "repo:production"
+
+	err := applier.UpdateRepositories(context.Background(), newValue)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	updated := m.GetUpdatedContents(testGitHubRepo, testFilePath, "a")
+	want := fmt.Sprintf("test:\n  image: %s\n", newValue)
+	if s := string(updated); s != want {
+		t.Fatalf("update failed, got %#v, want %#v", s, want)
+	}
+	m.AssertBranchCreated(testGitHubRepo, "a", testSHA)
+	m.AssertPullRequestCreated(testGitHubRepo, &scm.PullRequestInput{
+		Title:  fmt.Sprintf("Automated PR for yaml update from %q", testQuayRepo),
+		Body:   fmt.Sprintf("Automated update from %q", testQuayRepo),
+		Source: "a",
+		Target: sourceBranch,
+	})
+}
+
+func TestDisablePRCreation(t *testing.T) {
+	sourceBranch := "production"
+	testSHA := "980a0d5f19a64b4b30a87d4206aade58726b60e3"
+	m := mock.New(t)
+	m.AddFileContents(testGitHubRepo, testFilePath, sourceBranch, []byte("test:\n  image: old-image\n"))
+	m.AddBranchHead(testGitHubRepo, sourceBranch, testSHA)
+	configs := createConfigs()
+	configs.Repositories["testRepo"].DisablePRCreation = true
+	configs.Repositories["testRepo"].SourceBranch = sourceBranch
 	applier := makeApplier(t, m, configs)
 	newValue := "repo:production"
 
@@ -182,8 +215,8 @@ func TestUpdaterWithCreateMissingFile(t *testing.T) {
 	m.AddFileContents(testGitHubRepo, testFilePath, "master", []byte("test:\n  image: old-image\n"))
 	m.AddBranchHead(testGitHubRepo, "master", testSHA)
 	configs := createConfigs()
-	configs.Repositories[0].SourceBranch = "master"
-	configs.Repositories[0].CreateMissing = true
+	configs.Repositories["testRepo"].SourceBranch = "master"
+	configs.Repositories["testRepo"].CreateMissing = true
 	applier := makeApplier(t, m, configs)
 	newValue := "repo:production"
 	testErr := pkgClient.SCMError{
@@ -291,8 +324,8 @@ func makeApplier(t *testing.T, m *mock.MockClient, cfgs *config.RepoConfiguratio
 
 func createConfigs() *config.RepoConfiguration {
 	return &config.RepoConfiguration{
-		Repositories: []*config.Repository{
-			{
+		Repositories: map[string]*config.Repository{
+			"testRepo": {
 				Name:               testQuayRepo,
 				SourceRepo:         testGitHubRepo,
 				SourceBranch:       "master",
