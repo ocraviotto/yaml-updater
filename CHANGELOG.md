@@ -1,6 +1,14 @@
 # Changelog
 
-## [v0.1.2](https://github.com/ocraviotto/yaml-updater/tree/v0.1.3) (2022-02-22)
+## [v1.0.0](https://github.com/ocraviotto/yaml-updater/tree/v1.0.0) (2022-04-05)
+
+[Full Changelog](https://github.com/ocraviotto/yaml-updater/compare/v0.1.3...v1.0.0)
+
+**Merged pull requests:**
+
+- feat!: named repositories in config for better overrides [\#4](https://github.com/ocraviotto/yaml-updater/pull/4) ([ocraviotto](https://github.com/ocraviotto))
+
+## [v0.1.3](https://github.com/ocraviotto/yaml-updater/tree/v0.1.3) (2022-02-22)
 
 [Full Changelog](https://github.com/ocraviotto/yaml-updater/compare/v0.1.2...v0.1.3)
 
