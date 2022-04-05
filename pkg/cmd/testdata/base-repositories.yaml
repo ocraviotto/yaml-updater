@@ -11,12 +11,22 @@ repositories:
       name: "John Doe"
       email: "john.doe@example.com"
   testRepo2:
-    name: testing/repo-image
+    name: testing/repo-image2
     sourceRepo: my-org/my-other-project
     sourceBranch: master
-    filePath: service-a/deployment.yaml
-    updateKey: spec.template.spec.containers.0.image
-    branchGenerateName: repo-imager-
+    filePath: service-b/pod.yaml
+    updateKey: spec.containers.0.image
+    createMissing: true
+    signature:
+      name: "John Doe"
+      email: "john.doe@example.com"
+  testRepo3:
+    disabled: true
+    name: testing/another-repo
+    sourceRepo: my-org/my-other-project
+    sourceBranch: master
+    filePath: argocd/application.yaml
+    updateKey: spec.source.targetRevision
     createMissing: true
     signature:
       name: "John Doe"

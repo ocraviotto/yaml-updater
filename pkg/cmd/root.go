@@ -35,7 +35,7 @@ func makeRootCmd() *cobra.Command {
 
 	cmd.PersistentFlags().String(
 		driverFlag,
-		"bitbucketcloud",
+		"github",
 		"go-scm driver name to use e.g. github, gitlab, bitbucket, bitbucketcloud",
 	)
 	logIfError(viper.BindPFlag(driverFlag, cmd.PersistentFlags().Lookup(driverFlag)))

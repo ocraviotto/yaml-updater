@@ -28,9 +28,12 @@ type Applier struct {
 // and for each it calls UpdateRepository, returning on any detected error.
 func (u *Applier) UpdateRepositories(ctx context.Context, newValue string) error {
 	var result error
-	for _, repo := range u.configs.Repositories {
+	for key, repo := range u.configs.Repositories {
+		if repo.Disabled {
+			continue
+		}
 		if res := u.UpdateRepository(ctx, repo, newValue); res != nil {
-			u.log.Error(result, "Failed to update repository file", "repository", repo.SourceRepo, "file", repo.FilePath)
+			u.log.Error(result, "Failed to update repository file", "repositoryKey", key, "repository", repo.SourceRepo, "file", repo.FilePath)
 			result = res
 		}
 	}
@@ -40,7 +43,7 @@ func (u *Applier) UpdateRepositories(ctx context.Context, newValue string) error
 // UpdateRepository does the job of fetching the existing file, optionally creating it if it does not exist,
 // updating it, and then optionally creating a PR. It also supports file removal.
 func (u *Applier) UpdateRepository(ctx context.Context, cfg *config.Repository, newValue string) error {
-	signature := scm.Signature{}
+	var signature scm.Signature
 	cuFunc := updater.UpdateYAML(cfg.UpdateKey, newValue)
 	if cfg.RemoveKey {
 		cuFunc = updater.RemoveYAMLKey(cfg.UpdateKey)
@@ -58,6 +61,7 @@ func (u *Applier) UpdateRepository(ctx context.Context, cfg *config.Repository, 
 		Repo:               cfg.SourceRepo,
 		Filename:           cfg.FilePath,
 		Branch:             cfg.SourceBranch,
+		DisablePRCreation:  cfg.DisablePRCreation,
 		BranchGenerateName: cfg.BranchGenerateName,
 		CreateMissing:      cfg.CreateMissing,
 		RemoveFile:         cfg.RemoveFile,

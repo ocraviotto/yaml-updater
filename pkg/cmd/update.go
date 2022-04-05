@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/go-logr/zapr"
 	"github.com/spf13/cobra"
@@ -19,7 +20,7 @@ func makeUpdateCmd() *cobra.Command {
 		Use:   "update",
 		Short: "update a repository configuration",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var repositories *config.RepoConfiguration
+			var repositories, pRepositories *config.RepoConfiguration
 			logger, _ := zap.NewProduction()
 			l := zapr.NewLogger(logger)
 			defer func() {
@@ -43,8 +44,13 @@ func makeUpdateCmd() *cobra.Command {
 				return applier.UpdateRepository(context.Background(), configFromFlags(), viper.GetString("new-value"))
 			}
 
-			repositories = globalConfigsOverrides(repositories)
-			applier := applier.New(l, client.New(scmClient), repositories)
+			pRepositories, err = processConfigsAndOverrides(repositories)
+			if err != nil {
+				return fmt.Errorf("failing to update to to error: %s", err)
+			} else if pRepositories == nil {
+				return fmt.Errorf("failing to update as processing repositories config returned an empty list")
+			}
+			applier := applier.New(l, client.New(scmClient), pRepositories)
 			return applier.UpdateRepositories(context.Background(), viper.GetString("new-value"))
 		},
 	}
@@ -52,7 +58,8 @@ func makeUpdateCmd() *cobra.Command {
 	cmd.Flags().String(
 		"new-value",
 		"",
-		"The value to set for the yaml key, e.g. org/repo that is being updated for a docker image. If empty, the value will be set to an empty string",
+		"The value to set for the yaml key, e.g. org/repo that is being updated for a docker image. If empty, the value will be set to an empty string. "+
+			"Applies to ALL enabled and set repositories",
 	)
 	logIfError(viper.BindPFlag("new-value", cmd.Flags().Lookup("new-value")))
 
@@ -70,19 +77,59 @@ func makeUpdateCmd() *cobra.Command {
 
 func addConfigFlags(cmd *cobra.Command) {
 	cmd.Flags().String(
-		"image-repo",
-		"",
-		"The source code or image repository to identify from where the update originated. Deprecated, use \"change-source-name\"",
-	)
-	logIfError(viper.BindPFlag("image-repo", cmd.Flags().Lookup("image-repo")))
-
-	cmd.Flags().String(
 		"change-source-name",
 		"",
 		"The value to set for the yaml key, e.g. org/repo that is being updated for a docker image. Required either via flag, env or yaml. "+
 			"When set, either via flag or env, it overrides all repository configs from yaml",
 	)
 	logIfError(viper.BindPFlag("change-source-name", cmd.Flags().Lookup("change-source-name")))
+
+	// allow both the above to be accessed either way
+	viper.RegisterAlias("change-source-name", "image-repo")
+
+	cmd.Flags().Bool(
+		"disabled",
+		false,
+		"Used as an override with repositories from configs to disable and enable repositories via cli. Requires that the repository be declard in config",
+	)
+	logIfError(viper.BindPFlag("disabled", cmd.Flags().Lookup("disabled")))
+
+	cmd.Flags().String(
+		"only",
+		"",
+		"A single or comman separated list of keys of the repositories defined in configuration to update and use. By default all are enabled "+
+			"unless they are explicitely disabled. If given, any repository not in the only list will be disabled and if in the list, enabled. "+
+			"This is why it takes precedence over the repositories 'disabled' field. "+
+			"NOTE: This is different than the override keys in that it will disable any repository not in the list",
+	)
+	logIfError(viper.BindPFlag("only", cmd.Flags().Lookup("only")))
+
+	cmd.Flags().String(
+		"override-repositories",
+		"",
+		"A single or comman separated list of keys of the repositories to override via cli parameters. If not given and 'repositories' has more than one repository, "+
+			"the update command will fail, unless --override-all is passed. If the keys do not match one or more repositories, the command will fail (safe).",
+	)
+	logIfError(viper.BindPFlag("override-repositories", cmd.Flags().Lookup("override-repositories")))
+
+	cmd.Flags().Bool(
+		"override-all",
+		false,
+		"If there are more than a single repository, either --override-repositories OR --only is passed to apply the overrides to a particular repository, "+
+			"or this bool needs to be set, else the update command will fail. If all are given, "+
+			"--override-repositories takes precedence over --override-all, and --only over --override-repositories. "+
+			"When set, any key passed via cli will set the value for all configured repositories.",
+	)
+	logIfError(viper.BindPFlag("override-all", cmd.Flags().Lookup("override-all")))
+
+	cmd.Flags().Bool(
+		"disable-pr-creation",
+		false,
+		"If set, PR creation will be disabled and the commit will be directly done to the branh especified by --source-branch or sourceBranch "+
+			"(defaults to master). This flag works as any other Repository spec flag, allowing a user to set it in config, via cli override, "+
+			"or applied to all repositories via cli override along --override-all",
+	)
+	logIfError(viper.BindPFlag("disable-pr-creation", cmd.Flags().Lookup("disable-pr-creation")))
 
 	cmd.Flags().String(
 		"source-repo",
@@ -116,7 +163,8 @@ func addConfigFlags(cmd *cobra.Command) {
 	cmd.Flags().String(
 		"branch-generate-name",
 		"gitops-",
-		"Prefix for naming automatically generated branches. If empty, the source-branch will be directly committed changes to without a PR",
+		"Prefix for naming automatically generated branches. A PR will be created by default with a branch prefixed with this value. "+
+			"To disable PRs, pass the --disable-pr-creation flag or set disablePRCreation",
 	)
 	logIfError(viper.BindPFlag("branch-generate-name", cmd.Flags().Lookup("branch-generate-name")))
 
@@ -168,18 +216,10 @@ func addConfigFlags(cmd *cobra.Command) {
 	logIfError(viper.BindPFlag("commit-msg", cmd.Flags().Lookup("commit-msg")))
 }
 
-// Deprecate image-repo
-func setUpdateName() string {
-	v := viper.GetString("change-source-name")
-	if v != "" {
-		return v
-	}
-	return viper.GetString("image-repo")
-}
-
+// omitting disabled, as it makes no sense here
 func configFromFlags() *config.Repository {
 	return &config.Repository{
-		Name:               setUpdateName(),
+		Name:               viper.GetString("change-source-name"),
 		SourceRepo:         viper.GetString("source-repo"),
 		SourceBranch:       viper.GetString("source-branch"),
 		FilePath:           viper.GetString("file-path"),
@@ -189,6 +229,7 @@ func configFromFlags() *config.Repository {
 		RemoveFile:         viper.GetBool("remove-file"),
 		CreateMissing:      viper.GetBool("create-missing"),
 		CommitMsg:          viper.GetString("commit-msg"),
+		DisablePRCreation:  viper.GetBool("disable-pr-creation"),
 		Signature: &config.Signature{
 			Name:  viper.GetString("committer-name"),
 			Email: viper.GetString("committer-email"),
@@ -196,28 +237,111 @@ func configFromFlags() *config.Repository {
 	}
 }
 
-// globalConfigsOverrides is used to set global cli or env overrides over configuration
+// processConfigsAndOverrides is used to set cli or env overrides over configuration
 // from files
-func globalConfigsOverrides(configs *config.RepoConfiguration) *config.RepoConfiguration {
-	for _, repo := range configs.Repositories {
-		if viper.IsSet("remove-key") {
-			repo.RemoveKey = viper.GetBool("remove-key")
-		}
-		if viper.IsSet("remove-file") {
-			repo.RemoveFile = viper.GetBool("remove-file")
-		}
-		if viper.IsSet("create-missing") {
-			repo.CreateMissing = viper.GetBool("create-missing")
-		}
-		if viper.IsSet("file-path") {
-			repo.FilePath = viper.GetString("file-path")
-		}
-		if viper.IsSet("commit-msg") {
-			repo.CommitMsg = viper.GetString("commit-msg")
-		}
-		if viper.IsSet("change-source-name") || viper.IsSet("image-repo") {
-			repo.Name = setUpdateName()
+func processConfigsAndOverrides(configs *config.RepoConfiguration) (*config.RepoConfiguration, error) {
+	var reposToOverride, overrideRepos, only []string
+
+	repoKeys := configs.Keys()
+
+	if viper.GetBool("override-all") {
+		reposToOverride = repoKeys
+	}
+
+	if overrideReposVal := viper.GetString("override-repositories"); overrideReposVal != "" {
+		overrideRepos = strings.Split(overrideReposVal, ",")
+		reposToOverride = overrideRepos
+	}
+
+	if onlyVal := viper.GetString("only"); onlyVal != "" {
+		only = strings.Split(onlyVal, ",")
+		reposToOverride = only
+		// Process all repositories when only is given
+		// to remove any repo not in only
+		for _, repo := range repoKeys {
+			// If --only is set and repo not in only, it will be deleted
+			// regardless of "disabled" value. Likewise, if disabled,
+			// it will be enabled and used.
+			var inOnly bool
+			for _, r := range only {
+				if repo == r {
+					inOnly = true
+				}
+			}
+			if len(only) > 0 && inOnly {
+				configs.Repositories[repo].Disabled = false
+			} else if len(only) > 0 {
+				delete(configs.Repositories, repo)
+			}
 		}
 	}
-	return configs
+
+	for _, repo := range reposToOverride {
+
+		// Check the keys exist in the map
+		if _, ok := configs.Repositories[repo]; !ok {
+			// Fail as the user intended something else
+			return nil, fmt.Errorf("user given repository: %s does not exist in the current repositories config - failsafe exit\nAre you passing --only too?", repo)
+		}
+
+		// Allow user to override disabled value when not using '--only'
+		if viper.IsSet("disabled") && len(only) == 0 {
+			configs.Repositories[repo].Disabled = viper.GetBool("disabled")
+		}
+
+		// Prevent processing disabled repos
+		if configs.Repositories[repo].Disabled {
+			continue
+		}
+
+		// Overrrides if set
+		if viper.IsSet("change-source-name") || viper.IsSet("image-repo") {
+			configs.Repositories[repo].Name = viper.GetString("change-source-name")
+		}
+		if viper.IsSet("source-repo") {
+			configs.Repositories[repo].SourceRepo = viper.GetString("source-repo")
+		}
+		if viper.IsSet("source-branch") {
+			configs.Repositories[repo].SourceBranch = viper.GetString("source-branch")
+		}
+		if viper.IsSet("file-path") {
+			configs.Repositories[repo].FilePath = viper.GetString("file-path")
+		}
+		if viper.IsSet("update-key") {
+			configs.Repositories[repo].UpdateKey = viper.GetString("update-key")
+		}
+		if viper.IsSet("branch-generate-name") {
+			configs.Repositories[repo].BranchGenerateName = viper.GetString("branch-generate-name")
+		}
+		if viper.IsSet("remove-key") {
+			configs.Repositories[repo].RemoveKey = viper.GetBool("remove-key")
+		}
+		if viper.IsSet("remove-file") {
+			configs.Repositories[repo].RemoveFile = viper.GetBool("remove-file")
+		}
+		if viper.IsSet("create-missing") {
+			configs.Repositories[repo].CreateMissing = viper.GetBool("create-missing")
+		}
+		if viper.IsSet("commit-msg") {
+			configs.Repositories[repo].CommitMsg = viper.GetString("commit-msg")
+		}
+		if viper.IsSet("disable-pr-creation") {
+			configs.Repositories[repo].DisablePRCreation = viper.GetBool("disable-pr-creation")
+		}
+		if viper.IsSet("committer-name") {
+			configs.Repositories[repo].Signature.Name = viper.GetString("committer-name")
+		}
+		if viper.IsSet("committer-email") {
+			configs.Repositories[repo].Signature.Email = viper.GetString("committer-email")
+		}
+	}
+
+	// Remove any other disabled repository not already removed
+	for k, r := range configs.Repositories {
+		if r.Disabled {
+			delete(configs.Repositories, k)
+		}
+	}
+
+	return configs, nil
 }

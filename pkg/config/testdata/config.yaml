@@ -1,5 +1,6 @@
 repositories:
-  - name: testing/repo-image
+  testRepo:
+    name: testing/repo-image
     sourceRepo: example/example-source
     sourceBranch: main
     filePath: test/file.yaml

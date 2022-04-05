@@ -12,11 +12,13 @@ import (
 // Repository is the items that are required to update a specific file in a repo.
 type Repository struct {
 	Name               string     `json:"name"`
+	Disabled           bool       `json:"disabled,omitempty"`
 	SourceRepo         string     `json:"sourceRepo"`
 	SourceBranch       string     `json:"sourceBranch"`
 	FilePath           string     `json:"filePath"`
 	UpdateKey          string     `json:"updateKey"`
 	BranchGenerateName string     `json:"branchGenerateName"`
+	DisablePRCreation  bool       `json:"disablePRCreation,omitempty"`
 	RemoveKey          bool       `json:"removeKey,omitempty"`
 	RemoveFile         bool       `json:"removeFile,omitempty"`
 	CreateMissing      bool       `json:"createMissing,omitempty"`
@@ -55,15 +57,30 @@ func Parse(in io.Reader) (*RepoConfiguration, error) {
 
 // RepoConfiguration is a slice of Repository values.
 type RepoConfiguration struct {
-	Repositories []*Repository `json:"repositories"`
+	Repositories map[string]*Repository `json:"repositories"`
 }
 
-// Find looks up the repository by name.
-func (c RepoConfiguration) Find(name string) *Repository {
-	for _, cfg := range c.Repositories {
-		if cfg.Name == name {
+// Find looks up the repository by key in a list or RepoConfiguration.Repositories.
+func (c RepoConfiguration) Find(repoKey string) *Repository {
+	for key, cfg := range c.Repositories {
+		if key == repoKey {
 			return cfg
 		}
 	}
 	return nil
+}
+
+// Keys returns the Repository keys in RepoConfiguration.Repositories.
+func (c RepoConfiguration) Keys() []string {
+	var keys []string
+	for key := range c.Repositories {
+		keys = append(keys, key)
+	}
+	return keys
+}
+
+// ApplyOverrides will decide if and how to apply cli values when
+// there is a matching config with existing repositories
+func (c RepoConfiguration) ApplyOverrides() RepoConfiguration {
+	return c
 }
