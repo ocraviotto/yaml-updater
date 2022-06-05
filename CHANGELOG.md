@@ -1,5 +1,13 @@
 # Changelog
 
+## [v1.0.1](https://github.com/ocraviotto/yaml-updater/tree/v1.0.1) (2022-06-05)
+
+[Full Changelog](https://github.com/ocraviotto/yaml-updater/compare/v1.0.0...v1.0.1)
+
+**Merged pull requests:**
+
+- build: added goreleaser and related github actions [\#5](https://github.com/ocraviotto/yaml-updater/pull/5) ([ocraviotto](https://github.com/ocraviotto))
+
 ## [v1.0.0](https://github.com/ocraviotto/yaml-updater/tree/v1.0.0) (2022-04-05)
 
 [Full Changelog](https://github.com/ocraviotto/yaml-updater/compare/v0.1.3...v1.0.0)
