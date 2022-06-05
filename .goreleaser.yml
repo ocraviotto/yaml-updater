@@ -1,0 +1,25 @@
+---
+project_name: yaml-updater
+
+builds:
+- main: ./cmd/yaml-updater/main.go
+  binary: yaml-updater
+  flags:
+    - -trimpath
+    - -v
+  ldflags:
+    - -s -w -X github.com/ocraviotto/yaml-updater/pkg/cmd.Version={{.Version}}
+  goos:
+    - linux
+    - windows
+    - darwin
+  goarch:
+    - amd64
+    - arm64
+    - arm
+archives:
+  - format: tar.gz
+    wrap_in_directory: "false"
+    format_overrides:
+      - goos: windows
+        format: zip
