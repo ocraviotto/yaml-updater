@@ -1,0 +1,65 @@
+name: Go
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Set up Go 1.x
+      uses: actions/setup-go@v3
+      with:
+        go-version: 1.17.x
+
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v3
+
+    - name: Test
+      run: go test -v ./...
+
+    - name: Install
+      run: go install ./cmd/yaml-updater
+
+  linting:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Set up Go 1.x
+      uses: actions/setup-go@v3
+      with:
+        go-version: 1.17.x
+
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v3
+
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v3
+      with:
+        version: v1.46.2
+
+  release-build:
+    name: release-build
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Set up Go 1.x
+      uses: actions/setup-go@v3
+      with:
+        go-version: 1.17.x
+
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v3
+
+    - name: GoReleaser
+      uses: goreleaser/goreleaser-action@v3
+      with:
+        version: latest
+        args: build --snapshot --rm-dist

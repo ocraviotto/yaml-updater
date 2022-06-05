@@ -16,6 +16,11 @@ const (
 	insecureFlag    = "insecure"
 )
 
+var (
+	// Version
+	Version = "1.0.0"
+)
+
 func init() {
 	cobra.OnInitialize(initConfig)
 }
@@ -29,6 +34,7 @@ func logIfError(e error) {
 func makeRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:              "yaml-updater",
+		Version:          Version,
 		TraverseChildren: true,
 		Short:            "Update YAML files in a Git service, with optional automated Pull Requests",
 	}
